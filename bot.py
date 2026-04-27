@@ -173,7 +173,5 @@ job_queue = app.job_queue
 # 北京时间18:00
 job_queue.run_daily(push_jobs, time=time(hour=10, minute=0))
 
-# ✅ 打开测试
-job_queue.run_once(push_jobs, when=30)
 
 app.run_polling()
