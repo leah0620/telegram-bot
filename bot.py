@@ -4,15 +4,15 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 import json
 import os
 import requests
+from datetime import time
 
 TOKEN = "8550250568:AAGxUDnU0tVBGBAElMycRUpQuYM8sUqIwlA"
 
-# ====== Google Sheet API（改这里）======
 SHEET_API = "https://opensheet.elk.sh/1bgrXN6pZZm-cMMqjvixbYT4SFB-dhAOILb3KeHyALOk/jobs"
 
-# ====== 数据文件 ======
 DATA_FILE = "users.json"
 
+# ====== 读写数据 ======
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
@@ -23,13 +23,12 @@ def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
-# ====== 初始化用户数据 ======
 user_data = load_data()
 
 # ====== 标签 ======
 TAGS = ["初级", "高级", "客户", "产品", "销售", "电商", "语言", "运营", "BD", "市场"]
 
-# ====== 构建按钮 ======
+# ====== 按钮 ======
 def build_keyboard(selected):
     keyboard = []
 
@@ -48,7 +47,6 @@ def build_keyboard(selected):
         keyboard.append(row)
 
     keyboard.append([InlineKeyboardButton("💾 保存", callback_data="save")])
-
     return InlineKeyboardMarkup(keyboard)
 
 # ====== 获取岗位 ======
@@ -75,58 +73,79 @@ def fetch_jobs():
         print("获取岗位失败:", e)
         return []
 
-# ====== 推送岗位 ======
-async def push_jobs(context: ContextTypes.DEFAULT_TYPE, user_id=None):
+# ====== 推送（带去重）======
+async def push_jobs(context: ContextTypes.DEFAULT_TYPE):
+    global user_data
+    user_data = load_data()
     jobs = fetch_jobs()
 
-    # 👉 如果传了 user_id = 只推给当前用户（测试用）
-    if user_id:
-        user_tags = user_data.get(user_id, [])
-        for job in jobs:
-            if any(tag in job["tags"] for tag in user_tags):
+    updated = False
 
-                text = f"""📌 {job['title']}
+    for uid, info in user_data.items():
+        tags = info.get("tags", [])
+        sent = info.get("sent", [])
+
+        new_jobs = []
+
+        for job in jobs:
+            if job["link"] in sent:
+                continue
+
+            if any(tag in job["tags"] for tag in tags):
+                new_jobs.append(job)
+
+        if not new_jobs:
+            continue
+
+        text = "🎯 今日新增岗位：\n\n"
+
+        for job in new_jobs[:5]:
+            text += f"""📌 {job['title']}
 公司：{job['company']}
 申请：{job['link']}
 标签：{' '.join(['#'+t for t in job['tags']])}
-"""
-                await context.bot.send_message(chat_id=int(user_id), text=text)
-        return
 
-    # 👉 否则全量推送（以后定时用）
-    for uid, user_tags in user_data.items():
-        for job in jobs:
-            if any(tag in job["tags"] for tag in user_tags):
-
-                text = f"""📌 {job['title']}
-公司：{job['company']}
-申请：{job['link']}
-标签：{' '.join(['#'+t for t in job['tags']])}
 """
-                await context.bot.send_message(chat_id=int(uid), text=text)
+            sent.append(job["link"])
+
+        user_data[uid]["sent"] = sent
+        updated = True
+
+        try:
+            await context.bot.send_message(chat_id=int(uid), text=text)
+        except Exception as e:
+            print("发送失败:", uid, e)
+
+    if updated:
+        save_data(user_data)
 
 # ====== /start ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
-    selected = user_data.get(user_id, [])
+
+    if user_id not in user_data:
+        user_data[user_id] = {"tags": [], "sent": []}
+
+    selected = user_data[user_id]["tags"]
 
     await update.message.reply_text(
         "请选择你感兴趣的岗位类型（可多选）：",
         reply_markup=build_keyboard(selected)
     )
 
-    # ⭐测试：同时推送岗位给自己
-    await push_jobs(context, user_id=user_id)
-
-# ====== 按钮逻辑 ======
+# ====== 按钮 ======
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = str(query.from_user.id)
     data = query.data
 
-    selected = user_data.get(user_id, [])
+    if user_id not in user_data:
+        user_data[user_id] = {"tags": [], "sent": []}
+
+    selected = user_data[user_id]["tags"]
 
     if data == "save":
+        save_data(user_data)
         await query.answer()
         await query.edit_message_text(f"✅ 已保存：{', '.join(selected)}")
         return
@@ -136,8 +155,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         selected.append(data)
 
-    user_data[user_id] = selected
-    save_data(user_data)
+    user_data[user_id]["tags"] = selected
 
     await query.answer()
     await query.edit_message_reply_markup(
@@ -149,5 +167,13 @@ app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(button))
+
+job_queue = app.job_queue
+
+# 北京时间18:00
+job_queue.run_daily(push_jobs, time=time(hour=10, minute=0))
+
+# 👉 测试用（30秒触发）
+# job_queue.run_once(push_jobs, when=30)
 
 app.run_polling()
