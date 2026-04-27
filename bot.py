@@ -5,7 +5,7 @@ TOKEN = "8550250568:AAGxUDnU0tVBGBAElMycRUpQuYM8sUqIwlA"
 
 user_data = {}
 
-TAGS = ["初级", "高级", "客户", "产品“, "销售", "电商", "语言", "运营", "BD", "市场"]
+TAGS = ["初级", "高级", "客户", "产品", "销售", "电商", "语言", "运营", "BD", "市场"]
 
 def build_keyboard(selected):
     keyboard = []
