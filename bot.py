@@ -9,13 +9,8 @@ import pytz
 
 TOKEN = "8550250568:AAGxUDnU0tVBGBAElMycRUpQuYM8sUqIwlA"
 SHEET_API = "https://opensheet.elk.sh/1bgrXN6pZZm-cMMqjvixbYT4SFB-dhAOILb3KeHyALOk/jobs"
-<<<<<<< HEAD
-
-DATA_FILE = "/app/data/users.json"
-=======
 DATA_FILE = "/app/data/users.json"
 CHANNEL_ID = "@wenke_remote_work0"  # ⚠️ 改成你的频道，比如 @myjobchannel
->>>>>>> cece7c7 (fix: add channel push and user notification)
 
 # ====== 读写数据 ======
 def load_data():
@@ -179,4 +174,3 @@ beijing = pytz.timezone("Asia/Shanghai")
 app.job_queue.run_daily(push_jobs, time=time(hour=18, minute=0, tzinfo=beijing))
 
 app.run_polling()
-
