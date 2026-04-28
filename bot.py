@@ -10,7 +10,7 @@ TOKEN = "8550250568:AAGxUDnU0tVBGBAElMycRUpQuYM8sUqIwlA"
 
 SHEET_API = "https://opensheet.elk.sh/1bgrXN6pZZm-cMMqjvixbYT4SFB-dhAOILb3KeHyALOk/jobs"
 
-DATA_FILE = "users.json"
+DATA_FILE = "/app/data/users.json"
 
 # ====== 读写数据 ======
 def load_data():
